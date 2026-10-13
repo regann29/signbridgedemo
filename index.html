@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SignBridge – sign to speech and voice assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e1420; --panel:#151d2c; --panel2:#1b2538; --line:#2a3752; --text:#e8edf7; --muted:#a3b0c8;
+  --accent:#4cc9f0; --accent-ink:#06202b; --ok:#5be3a1; --warn:#ffb84d; --bad:#ff8a8a;
+  --radius:14px; --font:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+:root[data-theme="light"]{
+  --bg:#f3f6fb; --panel:#ffffff; --panel2:#eaf0f8; --line:#c9d4e6; --text:#101828; --muted:#46556f;
+  --accent:#0b6e92; --accent-ink:#ffffff; --ok:#12744a; --warn:#8a5200; --bad:#b42323;
+}
+*{box-sizing:border-box}
+html{font-size:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.5;font-size:1rem}
+h1,h2,h3{line-height:1.2;margin:0 0 .5rem}
+h1{font-size:2rem} h2{font-size:1.4rem} h3{font-size:1.1rem}
+p{margin:0 0 .75rem}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.skip{position:absolute;left:-999px;top:0;background:var(--accent);color:var(--accent-ink);padding:.6rem 1rem;z-index:20}
+.skip:focus{left:0}
+
+header.top{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;align-items:center;justify-content:space-between;padding:.75rem 1.25rem;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:.6rem;font-weight:700;font-size:1.25rem}
+.brand svg{width:34px;height:34px}
+nav.tabs{display:flex;gap:.4rem;flex-wrap:wrap}
+.tab{min-height:44px;padding:.5rem 1rem;border-radius:10px;border:2px solid transparent;background:transparent;color:var(--text);font:inherit;cursor:pointer}
+.tab:hover{background:var(--panel2)}
+.tab[aria-current="page"]{border-color:var(--accent);background:var(--panel2);font-weight:700}
+.tools{display:flex;gap:.4rem;align-items:center}
+
+.btn{min-height:44px;padding:.5rem 1rem;border-radius:10px;border:2px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.btn.small{min-height:36px;padding:.25rem .7rem;font-size:.9rem}
+.btn.icon{min-width:44px;padding:.5rem}
+
+main{display:grid;gap:1.25rem;padding:1.25rem;max-width:1280px;margin:0 auto;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){main{grid-template-columns:minmax(0,1fr) 380px;align-items:start} aside.convo{position:sticky;top:1rem}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1.1rem}
+.stack{display:grid;gap:1.1rem}
+.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+.muted{color:var(--muted)}
+.notice{border-left:6px solid var(--accent);background:var(--panel2);padding:.7rem .9rem;border-radius:8px;margin-bottom:1.1rem}
+.notice[data-kind="error"]{border-color:var(--bad)} .notice[data-kind="warn"]{border-color:var(--warn)} .notice[data-kind="ok"]{border-color:var(--ok)}
+.notice[hidden]{display:none}
+.notice strong{margin-right:.4rem}
+
+.hero{padding:1.6rem}
+.hero p{max-width:62ch;color:var(--muted);font-size:1.1rem}
+.actions{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.action{text-align:left;display:block;width:100%;min-height:120px;cursor:pointer;color:inherit;font:inherit;background:var(--panel);border:2px solid var(--line);border-radius:var(--radius);padding:1.1rem}
+.action:hover{border-color:var(--accent)}
+.action h2{margin-bottom:.3rem}
+.checks{list-style:none;padding:0;margin:0;display:grid;gap:.4rem}
+.checks li{display:flex;gap:.6rem;align-items:baseline}
+.mark{display:inline-block;min-width:4.6rem;font-weight:700}
+.mark.ok{color:var(--ok)} .mark.warn{color:var(--warn)} .mark.bad{color:var(--bad)}
+ol.steps{margin:0;padding-left:1.3rem;display:grid;gap:.4rem}
+
+.stage{position:relative;background:#05080e;border-radius:12px;overflow:hidden;aspect-ratio:4/3;max-height:70vh;width:100%}
+.stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.stage .idle{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:1.5rem;color:#c8d3e8}
+.stage .idle[hidden]{display:none}
+.reading{position:absolute;left:.8rem;bottom:.8rem;right:.8rem;display:flex;align-items:center;gap:1rem;background:rgba(8,12,20,.82);color:#fff;border:1px solid #33445f;border-radius:12px;padding:.5rem .9rem}
+.reading[hidden]{display:none}
+.glyph{font-size:3rem;font-weight:700;line-height:1;min-width:3.2rem;text-align:center;color:#4cc9f0}
+.glyph.dim{color:#8795ae;font-size:1.4rem}
+.meter{flex:1;height:10px;background:#26344c;border-radius:6px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:#4cc9f0}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{border:1px solid var(--line);border-radius:999px;padding:.15rem .75rem;background:var(--panel2);font-size:.95rem}
+label{font-weight:700;display:block;margin-bottom:.25rem}
+input[type=text],textarea,select{width:100%;font:inherit;color:var(--text);background:var(--bg);border:2px solid var(--line);border-radius:10px;padding:.55rem .7rem;min-height:44px}
+textarea{min-height:110px;resize:vertical}
+input[type=range]{width:100%;min-height:32px;accent-color:var(--accent)}
+details.card>summary{cursor:pointer;font-weight:700;font-size:1.1rem;min-height:32px}
+.field{display:grid;gap:.25rem}
+.grid2{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+table{border-collapse:collapse;width:100%}
+td,th{text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--line)}
+dl.cmds{margin:0;display:grid;gap:.5rem}
+dl.cmds dt{font-weight:700} dl.cmds dd{margin:0;color:var(--muted)}
+.listen-dot{width:14px;height:14px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:.4rem;vertical-align:middle}
+.listening .listen-dot{background:var(--bad);animation:pulse 1.3s infinite}
+@keyframes pulse{50%{transform:scale(1.5);opacity:.5}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.log{list-style:none;margin:0;padding:0;display:grid;gap:.6rem;max-height:60vh;overflow:auto}
+.entry{border:1px solid var(--line);border-radius:10px;padding:.6rem .75rem;background:var(--panel2)}
+.entry .src{font-weight:700;font-size:.9rem;color:var(--accent)}
+.entry .txt{margin:.2rem 0 .4rem;white-space:pre-wrap;word-break:break-word}
+.entry .row{gap:.4rem}
+.confirm{border:2px solid var(--warn);border-radius:10px;padding:.75rem;margin-top:.75rem}
+.confirm[hidden]{display:none}
+footer{padding:1rem 1.25rem 2rem;text-align:center;color:var(--muted);font-size:.9rem}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#4cc9f0"/><path d="M8 24c4-9 8-9 12 0s8 9 12 0" stroke="#06202b" stroke-width="3.4" fill="none" stroke-linecap="round"/><circle cx="8" cy="24" r="2.6" fill="#06202b"/><circle cx="32" cy="24" r="2.6" fill="#06202b"/></svg>
+    <span>SignBridge</span>
+  </div>
+  <nav class="tabs" aria-label="Main">
+    <button class="tab" data-view="home">Home</button>
+    <button class="tab" data-view="sign">Sign to speech</button>
+    <button class="tab" data-view="voice">Voice assistant</button>
+  </nav>
+  <div class="tools" role="group" aria-label="Display settings">
+    <button class="btn small icon" id="txtDown" aria-label="Smaller text">A−</button>
+    <button class="btn small icon" id="txtUp" aria-label="Larger text">A+</button>
+    <button class="btn small" id="themeBtn" aria-label="Switch to light theme">Light theme</button>
+  </div>
+</header>
+
+<main id="main">
+  <div>
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <!-- HOME -->
+    <section id="view-home" class="stack" aria-labelledby="h-home">
+      <div class="card hero">
+        <h1 id="h-home">Talk across signing and speaking</h1>
+        <p>SignBridge reads hand signs from your webcam and turns them into text and speech, and lets you run a few simple tasks by voice. It supports the signs you teach it, not all of sign language.</p>
+      </div>
+      <div class="actions">
+        <button class="action" data-go="sign"><h2>Sign to speech</h2><p class="muted">Teach the app your signs, build a sentence, and have it read aloud.</p></button>
+        <button class="action" data-go="voice"><h2>Voice assistant</h2><p class="muted">Speak or type a command. Everything runs from a short approved list.</p></button>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h2>This browser</h2>
+          <ul class="checks" id="compat"></ul>
+        </div>
+        <div class="card">
+          <h2>Get started</h2>
+          <ol class="steps">
+            <li>Open Sign to speech and start the camera.</li>
+            <li>Under Teach gestures, record at least two signs, twice each.</li>
+            <li>Start recognition and sign. Letters appear in your text.</li>
+            <li>Select Speak text to hear it.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Privacy</h2>
+        <p>Camera video is processed on your device and is never saved or uploaded. The camera and microphone turn on only when you press Start. Your trained gestures are numbers describing hand shape, kept in memory until you close the page unless you choose to keep them on this device.</p>
+        <p class="muted">The first camera start downloads the hand-tracking model from the internet. Browser speech recognition may send audio to your browser vendor's service.</p>
+        <button class="btn danger" id="clearSession">Clear conversation and text</button>
+      </div>
+    </section>
+
+    <!-- SIGN -->
+    <section id="view-sign" class="stack" aria-labelledby="h-sign" hidden>
+      <div class="card">
+        <h2 id="h-sign">Sign to speech</h2>
+        <div class="stage" id="stage">
+          <video id="cam" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div class="idle" id="idle"><p>The camera is off.<br>Press Start camera to begin. Nothing is recorded.</p></div>
+          <div class="reading" id="reading" hidden aria-hidden="true">
+            <div class="glyph dim" id="glyph">–</div>
+            <div style="flex:1"><div id="readText">Looking for a hand</div><div class="meter"><i id="meterFill"></i></div></div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.8rem">
+          <button class="btn primary" id="camStart">Start camera</button>
+          <button class="btn" id="camStop" disabled>Stop camera</button>
+          <button class="btn primary" id="recStart" disabled>Start recognition</button>
+          <button class="btn" id="recStop" disabled>Stop recognition</button>
+          <button class="btn" id="modelRetry" hidden>Retry loading model</button>
+        </div>
+        <div class="chips" style="margin-top:.8rem" aria-label="Status">
+          <span class="chip" id="chipCam">Camera: off</span>
+          <span class="chip" id="chipModel">Hand tracking: not loaded</span>
+          <span class="chip" id="chipRec">Recognition: off</span>
+          <span class="chip" id="chipGest">Gestures taught: 0</span>
+        </div>
+        <p id="handHint" class="muted" style="margin-top:.6rem" hidden>No hand found. Hold one hand inside the frame, about an arm's length from the camera, with good light on it.</p>
+        <div class="field" style="margin-top:.8rem">
+          <label for="thresh">Minimum confidence: <output id="threshOut">70%</output></label>
+          <input type="range" id="thresh" min="40" max="95" value="70">
+          <span class="muted">Signs below this level are ignored instead of guessed.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Your text</h2>
+        <label for="compose">Text from signs (you can also type here)</label>
+        <textarea id="compose"></textarea>
+        <div class="row" style="margin-top:.6rem">
+          <button class="btn" id="bSpace">Space</button>
+          <button class="btn" id="bBack">Backspace</button>
+          <button class="btn" id="bUndo">Undo</button>
+          <button class="btn" id="bClear">Clear</button>
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <button class="btn primary" id="bSpeak">Speak text</button>
+          <button class="btn" id="bCopy">Copy text</button>
+          <button class="btn" id="bSend">Add to conversation</button>
+        </div>
+      </div>
+
+      <details class="card" id="teach">
+        <summary>Teach gestures</summary>
+        <p class="muted" style="margin-top:.6rem">Recording needs the camera on. Record each sign at least twice, in separate recordings, and move your hand a little closer and farther each time. Name a sign SPACE to insert a space, or DEL to delete a character.</p>
+        <div class="grid2">
+          <div class="field"><label for="gLabel">Sign name</label><input type="text" id="gLabel" maxlength="20" autocomplete="off" placeholder="For example A, B, or Hello"></div>
+          <div class="field"><label for="gCount">Samples per recording</label><select id="gCount"><option>30</option><option selected>45</option><option>60</option></select></div>
+        </div>
+        <div class="row" style="margin:.7rem 0">
+          <button class="btn primary" id="gRecord">Record sign</button>
+          <span id="gProgress" class="muted" role="status"></span>
+        </div>
+        <table id="gTable" aria-label="Taught gestures"><thead><tr><th>Sign</th><th>Samples</th><th>Recordings</th><th><span class="sr-only">Remove</span></th></tr></thead><tbody></tbody></table>
+        <p class="muted" id="gEmpty">No gestures yet. Record a sign above.</p>
+        <div class="row" style="margin-top:.7rem">
+          <button class="btn" id="gEval">Check accuracy</button>
+          <button class="btn" id="gExport">Export gestures</button>
+          <button class="btn" id="gImportBtn">Import gestures</button>
+          <input type="file" id="gImport" accept="application/json" hidden>
+          <button class="btn danger" id="gWipe">Remove all gestures</button>
+        </div>
+        <div class="field" style="margin-top:.8rem"><label><input type="checkbox" id="gKeep"> Keep taught gestures on this device</label><span class="muted">Saves hand-shape numbers (not images) in this browser's storage.</span></div>
+        <div id="evalOut" role="status" style="margin-top:.7rem"></div>
+      </details>
+    </section>
+
+    <!-- VOICE -->
+    <section id="view-voice" class="stack" aria-labelledby="h-voice" hidden>
+      <div class="card" id="voiceCard">
+        <h2 id="h-voice">Voice assistant</h2>
+        <div class="row">
+          <button class="btn primary" id="vStart">Start listening</button>
+          <button class="btn" id="vStop" disabled>Stop listening</button>
+          <span aria-live="polite"><span class="listen-dot" aria-hidden="true"></span><span id="vState">Not listening</span></span>
+        </div>
+        <p id="vUnsupported" class="muted" hidden style="margin-top:.6rem">This browser can't recognize speech. Type commands below instead. Chrome and Edge usually support speech recognition.</p>
+        <div class="field" style="margin-top:.9rem"><span class="label" style="font-weight:700">Heard</span><div id="vHeard" class="muted" aria-live="off">Nothing yet</div></div>
+        <form id="vForm" class="field" style="margin-top:.9rem">
+          <label for="vType">Type a command</label>
+          <div class="row"><input type="text" id="vType" style="flex:1;min-width:200px" autocomplete="off" placeholder="For example: hello"><button class="btn primary" type="submit">Send</button></div>
+        </form>
+        <div class="field" style="margin-top:.9rem"><span style="font-weight:700">Response</span><div id="vReply" aria-live="polite">Say or type a command.</div></div>
+        <div class="row" style="margin-top:.6rem">
+          <button class="btn" id="vSpeak">Speak response</button>
+          <label style="margin:0;font-weight:400"><input type="checkbox" id="vAuto"> Speak responses automatically</label>
+        </div>
+        <div class="confirm" id="vConfirm" hidden>
+          <p id="vConfirmText"></p>
+          <div class="row"><button class="btn primary" id="vYes">Open it</button><button class="btn" id="vNo">Cancel</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Commands</h2>
+        <dl class="cmds" id="cmdList"></dl>
+      </div>
+    </section>
+  </div>
+
+  <aside class="convo card" aria-labelledby="h-convo">
+    <div class="row" style="justify-content:space-between;margin-bottom:.6rem">
+      <h2 id="h-convo" style="margin:0">Conversation</h2>
+      <button class="btn small" id="convoClear">Clear</button>
+    </div>
+    <ul class="log" id="log" aria-live="polite" aria-relevant="additions"></ul>
+    <p class="muted" id="logEmpty">Signed text, voice commands and replies show up here. They stay on this page only.</p>
+  </aside>
+</main>
+<footer>SignBridge is a prototype. It recognizes only the signs you teach it and does not translate full sign language.</footer>
+
+<script type="module">
+/* ===================== CORE (pure logic, unit-tested in tests/core.test.mjs) ===================== */
+// <core>
+const HAND_CONNECTIONS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function normalizeLandmarks(lm, aspect=1){
+  if(!lm||lm.length!==21) return null;
+  const w=lm[0], out=new Float32Array(63); let max=0;
+  for(let i=0;i<21;i++){
+    const dx=(lm[i].x-w.x)*aspect, dy=lm[i].y-w.y, dz=((lm[i].z||0)-(w.z||0))*aspect;
+    out[i*3]=dx; out[i*3+1]=dy; out[i*3+2]=dz;
+    const m=Math.hypot(dx,dy,dz); if(m>max) max=m;
+  }
+  if(max<1e-6) return null;
+  for(let i=0;i<63;i++) out[i]/=max;
+  return out;
+}
+
+class KnnClassifier{
+  constructor(){ this.samples=[]; }
+  add(label,f,session=0){ this.samples.push({label,f:Float32Array.from(f),session}); }
+  removeLabel(l){ this.samples=this.samples.filter(s=>s.label!==l); }
+  clear(){ this.samples=[]; }
+  counts(){ const c={}; for(const s of this.samples) c[s.label]=(c[s.label]||0)+1; return c; }
+  sessionsOf(label){ return new Set(this.samples.filter(s=>s.label===label).map(s=>s.session)).size; }
+  labels(){ return Object.keys(this.counts()); }
+  nextSession(){ return this.samples.reduce((m,s)=>Math.max(m,s.session),0)+1; }
+  predict(f,{k=5,maxDist=0.9,exclude=null}={}){
+    const d=[];
+    for(const s of this.samples){
+      if(exclude&&exclude(s)) continue;
+      let sum=0; for(let i=0;i<f.length;i++){ const t=f[i]-s.f[i]; sum+=t*t; }
+      d.push({label:s.label,dist:Math.sqrt(sum)});
+    }
+    if(!d.length) return {label:null,confidence:0,reason:'untrained'};
+    d.sort((a,b)=>a.dist-b.dist);
+    const near=d.slice(0,Math.min(k,d.length));
+    if(near[0].dist>maxDist) return {label:null,confidence:0,reason:'unfamiliar',nearest:near[0].dist};
+    const votes={}; let total=0;
+    for(const n of near){ const w=1/(n.dist+0.05); votes[n.label]=(votes[n.label]||0)+w; total+=w; }
+    let best=null,bw=0; for(const l in votes) if(votes[l]>bw){ bw=votes[l]; best=l; }
+    return {label:best,confidence:bw/total,nearest:near[0].dist};
+  }
+  // Leave-one-recording-out: every sample is classified using only recordings other than its own.
+  evaluate(opts={}){
+    const skipped=[], perLabel={}; let n=0, correct=0, rejected=0;
+    for(const l of this.labels()){ if(this.sessionsOf(l)<2) skipped.push(l); }
+    const usable=this.labels().filter(l=>!skipped.includes(l));
+    if(usable.length<2) return {ok:false,skipped,reason:'Need at least two signs that each have two or more recordings.'};
+    for(const s of this.samples){
+      if(skipped.includes(s.label)) continue;
+      const p=this.predict(s.f,{...opts,exclude:o=>o.label===s.label&&o.session===s.session||skipped.includes(o.label)});
+      n++; perLabel[s.label]=perLabel[s.label]||{n:0,correct:0};
+      perLabel[s.label].n++;
+      if(p.label===null) rejected++;
+      if(p.label===s.label){ correct++; perLabel[s.label].correct++; }
+    }
+    return {ok:true,n,correct,rejected,accuracy:correct/n,skipped,perLabel};
+  }
+  toJSON(){ return {version:1,createdAt:new Date().toISOString(),samples:this.samples.map(s=>({label:s.label,session:s.session,f:Array.from(s.f,v=>+v.toFixed(4))}))}; }
+  loadJSON(obj){
+    if(!obj||obj.version!==1||!Array.isArray(obj.samples)) throw new Error('This file is not a SignBridge gesture export.');
+    if(obj.samples.length>20000) throw new Error('This file has too many samples.');
+    const off=this.nextSession(); let added=0;
+    for(const s of obj.samples){
+      if(typeof s.label!=='string'||!s.label||s.label.length>20||!Array.isArray(s.f)||s.f.length!==63||s.f.some(v=>typeof v!=='number'||!isFinite(v))) continue;
+      this.add(s.label,s.f,off+(Number(s.session)||0)); added++;
+    }
+    if(!added) throw new Error('No valid samples were found in this file.');
+    return added;
+  }
+}
+
+// Emits a label only after it is held steady for N frames, then waits for a release or a different sign.
+class Stabilizer{
+  constructor({stableFrames=6,cooldownMs=700}={}){ Object.assign(this,{stableFrames,cooldownMs}); this.reset(); }
+  reset(){ this.cand=null; this.count=0; this.last=null; this.lastAt=-1e9; this.released=true; }
+  update(label,now){
+    if(label===null){ this.cand=null; this.count=0; this.released=true; return null; }
+    if(label!==this.last) this.released=true;
+    if(label!==this.cand){ this.cand=label; this.count=1; } else this.count++;
+    if(this.count>=this.stableFrames && (label!==this.last||this.released) && now-this.lastAt>=this.cooldownMs){
+      this.last=label; this.lastAt=now; this.released=false; this.count=0; return label;
+    }
+    return null;
+  }
+}
+
+const COMMANDS=[
+  {id:'read',label:'Read aloud',example:'Read this text aloud, or: say good morning',test:t=>{const m=t.match(/^(?:please )?(?:read|say|speak)(?: this| that)?(?: text)?(?: aloud| out loud)?\s*(.*)$/);return m?{arg:m[1].replace(/^(that|this)\s+/,'').trim()}:null;}},
+  {id:'youtube',label:'Open YouTube',example:'Open YouTube',test:t=>/^(?:please )?(?:open|go to|launch)\s+youtube\b/.test(t)?{}:null},
+  {id:'screenshot',label:'Take a screenshot',example:'Take a screenshot',test:t=>/\b(screenshot|screen shot|screen capture)\b/.test(t)?{}:null},
+  {id:'stop',label:'Stop listening',example:'Stop listening',test:t=>/\bstop listening\b/.test(t)?{}:null},
+  {id:'goodbye',label:'Goodbye',example:'Goodbye',test:t=>/\b(goodbye|good bye|bye)\b/.test(t)?{}:null},
+  {id:'help',label:'Help',example:'Help, or: what can you do',test:t=>/^(?:please )?(help|what can you do|commands)\b/.test(t)?{}:null},
+  {id:'name',label:'Ask my name',example:'What is your name?',test:t=>/\bwhat(?:'s| is) your name\b|\bwho are you\b/.test(t)?{}:null},
+  {id:'howare',label:'How are you',example:'How are you?',test:t=>/\bhow are you\b|\bhow do you do\b/.test(t)?{}:null},
+  {id:'hello',label:'Greeting',example:'Hello',test:t=>/\b(hello|hi|hey)\b/.test(t)?{}:null},
+];
+function normalizeSpeech(t){ return String(t||'').toLowerCase().replace(/[^a-z0-9' ]+/g,' ').replace(/\s+/g,' ').trim(); }
+function parseCommand(text){
+  const t=normalizeSpeech(text); if(!t) return null;
+  for(const c of COMMANDS){ const r=c.test(t); if(r) return {id:c.id,arg:r.arg||''}; }
+  return null;
+}
+// </core>
+
+/* ===================== UI ===================== */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const clf=new KnnClassifier();
+const stab=new Stabilizer();
+const MAX_DIST=0.9;
+
+/* ---- notices ---- */
+const noticeEl=$('#notice'); let noticeTimer;
+function notice(kind,msg,sticky=false){
+  noticeEl.hidden=false; noticeEl.dataset.kind=kind;
+  noticeEl.textContent='';
+  const s=document.createElement('strong'); s.textContent={ok:'Done.',error:'Problem.',warn:'Heads up.',info:'Note.'}[kind]||'';
+  noticeEl.append(s,document.createTextNode(msg));
+  clearTimeout(noticeTimer); if(!sticky) noticeTimer=setTimeout(()=>noticeEl.hidden=true,9000);
+}
+
+/* ---- views ---- */
+function show(view){
+  if(view!=='sign') stopCamera();
+  for(const v of ['home','sign','voice']) $('#view-'+v).hidden=v!==view;
+  $$('.tab').forEach(b=>{ if(b.dataset.view===view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  if(view!=='voice') stopListening(true);
+  noticeEl.hidden=true;
+  const h=$('#view-'+view+' h1, #view-'+view+' h2'); if(h){ h.tabIndex=-1; h.focus({preventScroll:false}); }
+}
+$$('.tab').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));
+$$('[data-go]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.go)));
+
+/* ---- display settings ---- */
+let fontPct=100;
+$('#txtUp').onclick=()=>{ fontPct=Math.min(150,fontPct+10); document.documentElement.style.fontSize=fontPct+'%'; };
+$('#txtDown').onclick=()=>{ fontPct=Math.max(80,fontPct-10); document.documentElement.style.fontSize=fontPct+'%'; };
+$('#themeBtn').onclick=()=>{
+  const root=document.documentElement, light=root.dataset.theme!=='light';
+  root.dataset.theme=light?'light':'dark';
+  $('#themeBtn').textContent=light?'Dark theme':'Light theme';
+  $('#themeBtn').setAttribute('aria-label',light?'Switch to dark theme':'Switch to light theme');
+};
+
+/* ---- compatibility ---- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const hasTTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+(function compat(){
+  const items=[
+    ['Camera',!!navigator.mediaDevices?.getUserMedia&&window.isSecureContext,navigator.mediaDevices?.getUserMedia?(window.isSecureContext?'Available':'Needs https or localhost'):'Not supported'],
+    ['Hand tracking',typeof WebAssembly==='object','WebAssembly '+(typeof WebAssembly==='object'?'available':'missing')],
+    ['Speech input',!!SR,SR?'Available':'Not supported. Typed commands still work'],
+    ['Speech output',hasTTS,hasTTS?'Available':'Not supported'],
+  ];
+  const ul=$('#compat');
+  for(const [name,ok,msg] of items){
+    const li=document.createElement('li'), m=document.createElement('span');
+    m.className='mark '+(ok?'ok':'warn'); m.textContent=ok?'Ready':'Limited';
+    li.append(m,document.createTextNode(name+': '+msg)); ul.append(li);
+  }
+  if(!SR){ $('#vUnsupported').hidden=false; $('#vStart').disabled=true; }
+})();
+
+/* ---- speech output ---- */
+function speak(text){
+  if(!text||!text.trim()){ notice('warn','There is no text to speak.'); return false; }
+  if(!hasTTS){ notice('error','Speech playback isn\'t available in this browser. The text is still shown on screen.'); return false; }
+  speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); return true;
+}
+async function copyText(text){
+  if(!text){ notice('warn','There is nothing to copy.'); return; }
+  try{ await navigator.clipboard.writeText(text); notice('ok','Copied to the clipboard.'); }
+  catch{ notice('error','Copying was blocked. Select the text and copy it by hand.'); }
+}
+
+/* ---- conversation ---- */
+const SRC={sign:'From signs',typed:'Typed',voice:'Heard by voice',assistant:'Assistant reply'};
+const entries=[];
+function addEntry(source,text){
+  entries.push({source,text}); renderLog();
+}
+function renderLog(){
+  const ul=$('#log'); ul.textContent='';
+  entries.forEach((e,i)=>{
+    const li=document.createElement('li'); li.className='entry';
+    const s=document.createElement('div'); s.className='src'; s.textContent=SRC[e.source];
+    const t=document.createElement('div'); t.className='txt'; t.textContent=e.text;
+    const r=document.createElement('div'); r.className='row';
+    const b1=document.createElement('button'); b1.className='btn small'; b1.textContent='Speak'; b1.setAttribute('aria-label','Speak message '+(i+1)); b1.onclick=()=>speak(e.text);
+    const b2=document.createElement('button'); b2.className='btn small'; b2.textContent='Copy'; b2.setAttribute('aria-label','Copy message '+(i+1)); b2.onclick=()=>copyText(e.text);
+    r.append(b1,b2); li.append(s,t,r); ul.append(li);
+  });
+  $('#logEmpty').hidden=entries.length>0;
+  ul.scrollTop=ul.scrollHeight;
+}
+$('#convoClear').onclick=()=>{ entries.length=0; renderLog(); notice('ok','Conversation cleared.'); };
+$('#clearSession').onclick=()=>{ entries.length=0; renderLog(); setText('',false); undoStack.length=0; notice('ok','Conversation and text cleared.'); };
+
+/* ---- text composition ---- */
+const compose=$('#compose'); const undoStack=[]; let fromSign=false, lastSnap=0;
+function snapshot(){ undoStack.push(compose.value); if(undoStack.length>60) undoStack.shift(); }
+function setText(v,push=true){ if(push) snapshot(); compose.value=v; if(!v) fromSign=false; }
+compose.addEventListener('beforeinput',()=>{ const n=Date.now(); if(n-lastSnap>1200){ snapshot(); lastSnap=n; } });
+$('#bSpace').onclick=()=>setText(compose.value+' ');
+$('#bBack').onclick=()=>setText(compose.value.slice(0,-1));
+$('#bUndo').onclick=()=>{ if(!undoStack.length){ notice('warn','Nothing to undo.'); return; } compose.value=undoStack.pop(); };
+$('#bClear').onclick=()=>setText('');
+$('#bSpeak').onclick=()=>speak(compose.value);
+$('#bCopy').onclick=()=>copyText(compose.value);
+$('#bSend').onclick=()=>{ const t=compose.value.trim(); if(!t){ notice('warn','Write or sign some text first.'); return; } addEntry(fromSign?'sign':'typed',t); notice('ok','Added to the conversation.'); };
+function applyLabel(label){
+  fromSign=true;
+  if(label==='SPACE') setText(compose.value+' ');
+  else if(label==='DEL') setText(compose.value.slice(0,-1));
+  else setText(compose.value+(label.length>1?label+' ':label));
+}
+
+/* ---- camera and hand tracking ---- */
+const video=$('#cam'), canvas=$('#overlay'), ctx=canvas.getContext('2d');
+let stream=null, raf=0, landmarker=null, modelState='idle', recognizing=false, lastT=-1, noHandFrames=0, errFrames=0;
+const cap={active:false,label:'',n:0,target:0,session:0,last:0};
+
+function chips(){
+  $('#chipCam').textContent='Camera: '+(stream?'on':'off');
+  $('#chipModel').textContent='Hand tracking: '+({idle:'not loaded',loading:'loading…',ready:'ready',error:'failed to load'}[modelState]);
+  $('#chipRec').textContent='Recognition: '+(recognizing?'on':'off');
+  const n=clf.labels().length; $('#chipGest').textContent='Gestures taught: '+n;
+  $('#camStart').disabled=!!stream; $('#camStop').disabled=!stream;
+  $('#recStart').disabled=!(stream&&modelState==='ready')||recognizing;
+  $('#recStop').disabled=!recognizing;
+  $('#gRecord').disabled=!(stream&&modelState==='ready')||cap.active;
+  $('#modelRetry').hidden=modelState!=='error';
+}
+
+async function loadModel(){
+  if(modelState==='ready'||modelState==='loading') return;
+  modelState='loading'; chips();
+  try{
+    const mp=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+    const files=await mp.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const base={modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'};
+    const make=delegate=>mp.HandLandmarker.createFromOptions(files,{baseOptions:{...base,delegate},runningMode:'VIDEO',numHands:1});
+    try{ landmarker=await make('GPU'); } catch{ landmarker=await make('CPU'); }
+    modelState='ready';
+    notice('ok','Hand tracking is ready.');
+  }catch(e){
+    modelState='error';
+    notice('error','Hand tracking could not load. The first run needs an internet connection to download the model. Check your connection, then select Retry loading model.',true);
+  }
+  chips();
+}
+$('#modelRetry').onclick=loadModel;
+
+async function startCamera(){
+  if(stream) return;
+  if(!navigator.mediaDevices?.getUserMedia||!window.isSecureContext){
+    notice('error','The camera needs a secure page. Serve this file with a local server (for example python -m http.server) and open http://localhost:8000.',true); return;
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false});
+  }catch(e){
+    const msg={NotAllowedError:'Camera permission was denied. Allow camera access in your browser\'s site settings, then try again.',
+      NotFoundError:'No camera was found. Connect a webcam and try again.',
+      NotReadableError:'The camera is in use by another app. Close that app and try again.'}[e.name]||'The camera could not start ('+e.name+').';
+    notice('error',msg,true); stream=null; chips(); return;
+  }
+  video.srcObject=stream;
+  try{ await video.play(); }catch{}
+  await new Promise(r=>{ if(video.videoWidth) r(); else video.onloadedmetadata=()=>r(); });
+  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
+  $('#stage').style.aspectRatio=video.videoWidth+'/'+video.videoHeight;
+  $('#idle').hidden=true; $('#reading').hidden=false;
+  noticeEl.hidden=true; lastT=-1; stab.reset(); chips();
+  loadModel();
+  raf=requestAnimationFrame(loop);
+}
+function stopCamera(){
+  recognizing=false; cap.active=false; $('#gProgress').textContent='';
+  cancelAnimationFrame(raf);
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  video.srcObject=null; ctx.clearRect(0,0,canvas.width,canvas.height);
+  $('#idle').hidden=false; $('#reading').hidden=true; $('#handHint').hidden=true;
+  chips();
+}
+$('#camStart').onclick=startCamera; $('#camStop').onclick=stopCamera;
+addEventListener('pagehide',stopCamera);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden&&stream) { stopCamera(); notice('info','The camera was turned off because the page was hidden.'); } });
+
+$('#recStart').onclick=()=>{
+  if(!clf.labels().length){ notice('warn','No gestures taught yet. Open Teach gestures and record at least two signs first.'); $('#teach').open=true; return; }
+  if(clf.labels().length<2) notice('warn','Only one gesture is taught, so every sign will look like it. Record at least two.');
+  stab.reset(); recognizing=true; chips();
+};
+$('#recStop').onclick=()=>{ recognizing=false; setReading(null,'Recognition is off',0); chips(); };
+
+const thresh=$('#thresh');
+thresh.oninput=()=>{ $('#threshOut').textContent=thresh.value+'%'; };
+
+function setReading(glyph,text,conf){
+  const g=$('#glyph'); g.textContent=glyph??'–'; g.classList.toggle('dim',!glyph||glyph.length>2);
+  $('#readText').textContent=text; $('#meterFill').style.width=Math.round(conf*100)+'%';
+}
+function draw(lm){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!lm) return;
+  const W=canvas.width,H=canvas.height;
+  ctx.lineWidth=3; ctx.strokeStyle='#4cc9f0'; ctx.fillStyle='#ffffff';
+  for(const [a,b] of HAND_CONNECTIONS){ ctx.beginPath(); ctx.moveTo(lm[a].x*W,lm[a].y*H); ctx.lineTo(lm[b].x*W,lm[b].y*H); ctx.stroke(); }
+  for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*W,p.y*H,4,0,6.3); ctx.fill(); }
+}
+
+function loop(){
+  if(!stream) return;
+  raf=requestAnimationFrame(loop);
+  if(!landmarker||video.readyState<2||video.currentTime===lastT) return;
+  lastT=video.currentTime;
+  let res;
+  try{ res=landmarker.detectForVideo(video,performance.now()); errFrames=0; }
+  catch(e){ if(++errFrames>30){ notice('error','Hand tracking stopped unexpectedly. Stop and restart the camera.',true); stopCamera(); } return; }
+  const lm=res.landmarks&&res.landmarks[0];
+  draw(lm);
+  if(!lm){
+    noHandFrames++; if(noHandFrames>8) $('#handHint').hidden=false;
+    if(recognizing){ stab.update(null,performance.now()); setReading(null,'Looking for a hand',0); }
+    return;
+  }
+  noHandFrames=0; $('#handHint').hidden=true;
+  const f=normalizeLandmarks(lm,video.videoWidth/video.videoHeight);
+  if(!f) return;
+  if(cap.active) captureStep(f);
+  if(recognizing) recognizeStep(f);
+}
+
+function recognizeStep(f){
+  const now=performance.now();
+  const p=clf.predict(f,{maxDist:MAX_DIST});
+  const min=thresh.value/100;
+  const ok=p.label&&p.confidence>=min?p.label:null;
+  if(ok) setReading(ok,'Reading '+ok+' ('+Math.round(p.confidence*100)+'%)',p.confidence);
+  else if(p.label) setReading('?','Not sure: closest is '+p.label+' ('+Math.round(p.confidence*100)+'%)',p.confidence);
+  else setReading('?','Unfamiliar sign',0);
+  const out=stab.update(ok,now);
+  if(out) applyLabel(out);
+}
+
+/* ---- teaching gestures ---- */
+function captureStep(f){
+  const now=performance.now(); if(now-cap.last<90) return; cap.last=now;
+  clf.add(cap.label,f,cap.session); cap.n++;
+  $('#gProgress').textContent='Recording '+cap.label+': '+cap.n+' of '+cap.target;
+  if(cap.n>=cap.target){
+    cap.active=false; $('#gProgress').textContent='Recorded '+cap.target+' samples of '+cap.label+'.';
+    renderGestures(); persist(); chips();
+  }
+}
+$('#gRecord').onclick=()=>{
+  const label=$('#gLabel').value.trim();
+  if(!label){ notice('warn','Type a name for the sign first.'); $('#gLabel').focus(); return; }
+  const l=(label.toUpperCase()==='SPACE'||label.toUpperCase()==='DEL')?label.toUpperCase():(label.length===1?label.toUpperCase():label);
+  cap.label=l; cap.target=+$('#gCount').value; cap.n=0; cap.session=clf.nextSession(); cap.active=true; cap.last=0;
+  $('#gProgress').textContent='Get ready. Hold the sign in view…'; chips();
+};
+function renderGestures(){
+  const tb=$('#gTable tbody'); tb.textContent='';
+  const c=clf.counts(), labels=Object.keys(c).sort();
+  for(const l of labels){
+    const tr=document.createElement('tr');
+    const cells=[l,c[l],clf.sessionsOf(l)].map(v=>{ const td=document.createElement('td'); td.textContent=v; return td; });
+    const td=document.createElement('td'); const b=document.createElement('button'); b.className='btn small danger'; b.textContent='Remove'; b.setAttribute('aria-label','Remove sign '+l);
+    b.onclick=()=>{ clf.removeLabel(l); renderGestures(); persist(); chips(); notice('ok','Removed '+l+'.'); };
+    td.append(b); tr.append(...cells,td); tb.append(tr);
+  }
+  $('#gTable').hidden=!labels.length; $('#gEmpty').hidden=!!labels.length; chips();
+}
+$('#gEval').onclick=()=>{
+  const r=clf.evaluate({maxDist:MAX_DIST}), out=$('#evalOut'); out.textContent='';
+  const p=t=>{ const e=document.createElement('p'); e.textContent=t; out.append(e); };
+  if(!r.ok){ p(r.reason); return; }
+  p('Tested on '+r.n+' samples, each judged using only the other recordings: '+Math.round(r.accuracy*100)+'% correct, '+r.rejected+' left unrecognized.');
+  for(const l of Object.keys(r.perLabel).sort()) p(l+': '+r.perLabel[l].correct+' of '+r.perLabel[l].n);
+  if(r.skipped.length) p('Not tested (only one recording): '+r.skipped.join(', ')+'.');
+  p('This is a rough guide measured on your own recordings. Try the signs live to judge real performance.');
+};
+$('#gExport').onclick=()=>{
+  if(!clf.samples.length){ notice('warn','No gestures to export yet.'); return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(clf.toJSON())],{type:'application/json'}));
+  a.download='signbridge-gestures.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+$('#gImportBtn').onclick=()=>$('#gImport').click();
+$('#gImport').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ const n=clf.loadJSON(JSON.parse(await f.text())); renderGestures(); persist(); notice('ok','Imported '+n+' samples.'); }
+  catch(err){ notice('error',err.message||'That file could not be read.'); }
+};
+$('#gWipe').onclick=()=>{ if(!clf.samples.length) return; if(confirm('Remove all taught gestures?')){ clf.clear(); renderGestures(); persist(); } };
+
+/* optional on-device persistence (off by default) */
+const KEEP='signbridge.keep', DATA='signbridge.gestures';
+function persist(){
+  try{
+    if($('#gKeep').checked) localStorage.setItem(DATA,JSON.stringify(clf.toJSON())); else localStorage.removeItem(DATA);
+  }catch{}
+}
+$('#gKeep').onchange=()=>{ try{ localStorage.setItem(KEEP,$('#gKeep').checked?'1':'0'); }catch{} persist(); };
+(function restore(){
+  try{
+    if(localStorage.getItem(KEEP)==='1'){
+      $('#gKeep').checked=true;
+      const raw=localStorage.getItem(DATA); if(raw) clf.loadJSON(JSON.parse(raw));
+    }
+  }catch{}
+  renderGestures();
+})();
+
+/* ---- voice assistant ---- */
+let rec=null, wantListen=false, lastReply='', pendingUrl=null;
+const vState=$('#vState'), voiceCard=$('#voiceCard');
+function setVoiceUI(on,label){ voiceCard.classList.toggle('listening',on); vState.textContent=label; $('#vStart').disabled=on||!SR; $('#vStop').disabled=!on; }
+
+function startListening(){
+  if(!SR){ notice('error','Speech recognition isn\'t supported in this browser. Type your command instead.'); return; }
+  if(rec) return;
+  wantListen=true;
+  rec=new SR(); rec.lang='en-US'; rec.continuous=true; rec.interimResults=true;
+  rec.onstart=()=>setVoiceUI(true,'Listening…');
+  rec.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i], t=r[0].transcript;
+      if(r.isFinal){ $('#vHeard').textContent=t.trim(); handleUtterance(t,'voice'); } else interim+=t;
+    }
+    if(interim) $('#vHeard').textContent=interim+' …';
+  };
+  rec.onerror=e=>{
+    if(e.error==='no-speech'||e.error==='aborted') return;
+    const msg={'not-allowed':'Microphone permission was denied. Allow microphone access in your browser\'s site settings, then try again.',
+      'service-not-allowed':'Speech recognition is blocked by your browser settings.',
+      'audio-capture':'No microphone was found. Connect one, or type commands instead.',
+      'network':'Speech recognition needs a network connection. Type commands instead.'}[e.error]||'Speech recognition stopped ('+e.error+').';
+    notice('error',msg,true); wantListen=false;
+  };
+  rec.onend=()=>{
+    const again=wantListen; rec=null;
+    if(again){ setTimeout(()=>{ if(wantListen&&!rec) startListening(); },250); }
+    else setVoiceUI(false,'Not listening');
+  };
+  try{ rec.start(); }catch{ rec=null; wantListen=false; setVoiceUI(false,'Not listening'); }
+}
+function stopListening(silent){
+  wantListen=false; if(rec){ try{ rec.stop(); }catch{} }
+  setVoiceUI(false,'Not listening');
+}
+$('#vStart').onclick=startListening; $('#vStop').onclick=()=>stopListening();
+
+function reply(text,speakIt=false){
+  lastReply=text; $('#vReply').textContent=text; addEntry('assistant',text);
+  if(speakIt||$('#vAuto').checked) speak(text);
+}
+function handleUtterance(text,source){
+  const clean=text.trim(); if(!clean) return;
+  addEntry(source==='voice'?'voice':'typed',clean);
+  const cmd=parseCommand(clean);
+  if(!cmd){ reply('I didn\'t understand "'+clean+'". Say help to hear what I can do.'); return; }
+  switch(cmd.id){
+    case 'hello': reply('Hello! I\'m SignBridge. Say help to hear what I can do.'); break;
+    case 'name': reply('My name is SignBridge.'); break;
+    case 'howare': reply('I\'m running well, thank you.'); break;
+    case 'read': {
+      const t=cmd.arg||compose.value.trim();
+      if(!t){ reply('There is no text to read. Say "say" followed by the words, or write text in Sign to speech.'); break; }
+      reply('Reading aloud: '+t,true); break;
+    }
+    case 'youtube':
+      pendingUrl='https://www.youtube.com/';
+      $('#vConfirmText').textContent='Open youtube.com in a new tab?'; $('#vConfirm').hidden=false; $('#vYes').focus();
+      reply('I need your OK before opening YouTube. Choose Open it or Cancel.'); break;
+    case 'screenshot': reply('Screenshots aren\'t available in the browser version. Use your device\'s screenshot shortcut instead.'); break;
+    case 'stop': stopListening(); reply('Stopped listening.'); break;
+    case 'goodbye': stopListening(); reply('Goodbye!'); break;
+    case 'help': reply('You can say: '+COMMANDS.map(c=>c.example).join('. ')+'.'); break;
+  }
+}
+$('#vForm').onsubmit=e=>{ e.preventDefault(); const i=$('#vType'); const t=i.value; i.value=''; $('#vHeard').textContent=t||'Nothing yet'; if(t.trim()) handleUtterance(t,'typed'); else notice('warn','Type a command first.'); };
+$('#vSpeak').onclick=()=>speak(lastReply);
+$('#vYes').onclick=()=>{ $('#vConfirm').hidden=true; if(pendingUrl){ window.open(pendingUrl,'_blank','noopener'); pendingUrl=null; reply('Opened YouTube in a new tab.'); } };
+$('#vNo').onclick=()=>{ $('#vConfirm').hidden=true; pendingUrl=null; reply('Okay, I did not open anything.'); };
+(function(){ const dl=$('#cmdList'); for(const c of COMMANDS){ const dt=document.createElement('dt'); dt.textContent=c.label; const dd=document.createElement('dd'); dd.textContent='Try: '+c.example; dl.append(dt,dd); } })();
+
+/* ---- init ---- */
+renderLog(); show('home'); chips();
+document.activeElement&&document.activeElement.blur();
+</script>
+</body>
+</html>
