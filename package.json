@@ -1,0 +1,16 @@
+{
+  "name": "signbridge",
+  "version": "0.1.0",
+  "description": "Sign-to-speech and voice assistant prototype",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node tests/core.test.mjs && node tests/ui.smoke.mjs",
+    "start": "python -m http.server 8000"
+  },
+  "dependencies": {
+    "jsdom": "^30.1.2"
+  },
+  "private": true
+}
